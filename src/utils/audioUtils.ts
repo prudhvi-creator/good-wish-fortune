@@ -1,0 +1,188 @@
+// Pure Web Audio API Sound Synthesizer for Retro RTC Machine
+
+class SoundSynthesizer {
+  private ctx: AudioContext | null = null;
+  private isMuted: boolean = false; // Enabled by default
+
+  private initCtx() {
+    if (!this.ctx && typeof window !== 'undefined') {
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (AudioCtx) {
+        this.ctx = new AudioCtx();
+      }
+    }
+    if (this.ctx && this.ctx.state === 'suspended') {
+      this.ctx.resume().catch(() => {});
+    }
+  }
+
+  public setMuted(muted: boolean) {
+    this.isMuted = muted;
+  }
+
+  public getIsMuted(): boolean {
+    return this.isMuted;
+  }
+
+  // Metallic Coin Insertion Sound ("TING!")
+  public playCoin() {
+    if (this.isMuted) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+
+    // Metallic hit oscillator 1 (high chime)
+    const osc1 = this.ctx.createOscillator();
+    const gain1 = this.ctx.createGain();
+    osc1.type = 'sine';
+    osc1.frequency.setValueAtTime(1800, now);
+    osc1.frequency.exponentialRampToValueAtTime(2400, now + 0.05);
+    osc1.frequency.exponentialRampToValueAtTime(1200, now + 0.15);
+
+    gain1.gain.setValueAtTime(0.3, now);
+    gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+    osc1.connect(gain1);
+    gain1.connect(this.ctx.destination);
+
+    osc1.start(now);
+    osc1.stop(now + 0.35);
+
+    // Second metallic ping
+    const osc2 = this.ctx.createOscillator();
+    const gain2 = this.ctx.createGain();
+    osc2.type = 'triangle';
+    osc2.frequency.setValueAtTime(3200, now + 0.08);
+    osc2.frequency.exponentialRampToValueAtTime(2800, now + 0.25);
+
+    gain2.gain.setValueAtTime(0.2, now + 0.08);
+    gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+    osc2.connect(gain2);
+    gain2.connect(this.ctx.destination);
+
+    osc2.start(now + 0.08);
+    osc2.stop(now + 0.3);
+  }
+
+  // Mechanical Scale Motor / Gear Hum
+  public playMotor(durationMs: number = 2000) {
+    if (this.isMuted) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    const duration = durationMs / 1000;
+
+    // Low motor rumble
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(65, now);
+    osc.frequency.linearRampToValueAtTime(85, now + duration * 0.5);
+    osc.frequency.linearRampToValueAtTime(55, now + duration);
+
+    gain.gain.setValueAtTime(0.08, now);
+    gain.gain.linearRampToValueAtTime(0.12, now + 0.1);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + duration);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + duration);
+  }
+
+  // Relay click / Beep sound during Analysis
+  public playBeep() {
+    if (this.isMuted) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const now = this.ctx.currentTime;
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(880, now);
+    osc.frequency.setValueAtTime(1200, now + 0.04);
+
+    gain.gain.setValueAtTime(0.1, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+
+    osc.connect(gain);
+    gain.connect(this.ctx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.09);
+  }
+
+  // Dot-Matrix / Ticket Printer Noise ("CH-CH-CH")
+  public playPrint(durationMs: number = 1800) {
+    if (this.isMuted) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const pulses = 8;
+    const interval = (durationMs / 1000) / pulses;
+
+    for (let i = 0; i < pulses; i++) {
+      const now = this.ctx.currentTime + (i * interval);
+      
+      const bufferSize = this.ctx.sampleRate * 0.03;
+      const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let j = 0; j < bufferSize; j++) {
+        data[j] = Math.random() * 2 - 1;
+      }
+
+      const noise = this.ctx.createBufferSource();
+      noise.buffer = buffer;
+
+      const filter = this.ctx.createBiquadFilter();
+      filter.type = 'bandpass';
+      filter.frequency.setValueAtTime(1500 + Math.random() * 500, now);
+
+      const gain = this.ctx.createGain();
+      gain.gain.setValueAtTime(0.15, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.03);
+
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      noise.start(now);
+      noise.stop(now + 0.03);
+    }
+  }
+
+  // Card Eject Fanfare / Chime
+  public playCardReady() {
+    if (this.isMuted) return;
+    this.initCtx();
+    if (!this.ctx) return;
+
+    const notes = [523.25, 659.25, 783.99, 1046.50]; // C5, E5, G5, C6
+    notes.forEach((freq, index) => {
+      if (!this.ctx) return;
+      const now = this.ctx.currentTime + (index * 0.09);
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now);
+
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.3);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.3);
+    });
+  }
+}
+
+export const soundSynth = new SoundSynthesizer();
